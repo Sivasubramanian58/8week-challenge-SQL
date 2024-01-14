@@ -1,0 +1,144 @@
+  ---Qn ANS
+---1  
+SELECT s.customer_id
+,SUM(m.price) AS total
+FROM sales s 
+JOIN menu m On s.product_id = m.product_id
+GROUP BY 1;
+
+---Here we have made then join of two tables where price and customer id are different table and used group by to total based on customer id
+
+----2
+
+SELECT customer_id
+,COUNT(DISTINCT order_date) AS visits
+FROM sales
+GROUP BY customer_id;
+
+---3
+
+SELECT s.customer_id,
+ m.product_name
+FROM sales s
+JOIN menu m USING(product_id)
+WHERE s.order_date IN (
+SELECT MIN(order_date)
+ FROM sales
+ GROUP BY customer_id);
+
+
+---We have used Scalar Subquery to get the value
+
+--4
+
+SELECT m.product_name,
+COUNT(s.product_id) AS purchase_frequency
+FROM menu m
+JOIN sales s USING(s.product_id)
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 1;
+
+---5
+
+WITH cust_pop
+AS (
+SELECT customer_id
+    , product_id
+    , COUNT(product_id) AS order_count
+FROM sales
+GROUP BY 1, 2)
+
+SELECT customer_id
+    , product_name
+FROM
+    (SELECT c.customer_id, m.product_name,
+ DENSE_RANK() OVER(PARTITION BY customer_id ORDER BY order_count DESC) AS rank
+    FROM cust_pop c
+    JOIN menu m USING(product_id)) AS fav
+WHERE rank = 1;
+
+---We have used CTE to create an loop instead of suquery and we have used dense rank to get the highest ordered item in the menu for each customer
+
+---6
+
+WITH after_join 
+AS (
+SELECT s.*
+, m.product_name
+, DENSE_RANK() OVER(PARTITION BY s.customer_id ORDER BY s.order_date) AS first
+FROM sales s
+JOIN members mm USING(s.customer_id) 
+JOIN menu m ON s.product_id = m.product_id
+WHERE s.order_date >= mm.join_date)
+
+SELECT customer_id,product_name
+FROM after_join
+WHERE first = 1;
+
+
+---7
+
+WITH last_order_member
+AS (
+SELECT s.customer_id,s.product_id 
+    , m.product_name
+    , DENSE_RANK() OVER(PARTITION BY customer_id ORDER BY order_date DESC)AS last
+FROM sales s
+JOIN members mm USING(customer_id)
+JOIN menu m ON s.product_id = m.product_id
+WHERE s.order_date < mm.join_date)
+
+SELECT customer_id,product_name
+FROM last_order_member
+WHERE last = 1;
+
+
+---8
+
+SELECT S.CUSTOMER_ID,
+SUM(M.PRICE),
+COUNT(S.product_id)
+FROM SALES S
+JOIN MENU M USING (PRODUCT_ID)
+JOIN MEMBERS ME ON ME.CUSTOMER_ID = S.CUSTOMER_ID
+WHERE ORDER_DATE < JOIN_DATE
+GROUP BY 1;
+
+---9
+
+WITH POINTS
+AS (
+SELECT S.CUSTOMER_ID, S.PRODUCT_ID, M.PRICE,
+CASE 
+WHEN PRODUCT_ID = 1 THEN PRICE*20
+ELSE PRICE * 10
+END AS POINTS
+FROM SALES S
+JOIN MENU M USING (PRODUCT_ID))
+
+SELECT CUSTOMER_ID,
+SUM(POINTS)
+FROM POINTS 
+GROUP BY 1;
+
+---10
+
+WITH POINTS
+AS (
+SELECT S.CUSTOMER_ID, S.PRODUCT_ID, M.PRICE, DATEADD(DAY, '6',ME.JOIN_DATE) AS END_PROMO,
+CASE 
+   WHEN S.PRODUCT_ID = 1 THEN PRICE*20
+   WHEN (S.ORDER_DATE BETWEEN ME.JOIN_DATE AND END_PROMO) THEN PRICE*20
+ELSE PRICE * 10
+END AS POINTS
+FROM SALES S
+JOIN MENU M ON S.PRODUCT_ID = M.PRODUCT_ID
+JOIN MEMBERS ME ON ME.CUSTOMER_ID = S.CUSTOMER_ID
+WHERE ORDER_DATE < '2021-01-31')
+
+SELECT CUSTOMER_ID,
+SUM(POINTS)
+FROM POINTS 
+GROUP BY 1;
+
